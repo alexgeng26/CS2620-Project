@@ -1,0 +1,65 @@
+syntax = "proto3";
+package mcp2pc;
+
+message Empty {}
+
+message PrepareRequest {
+  string transaction_id = 1;
+  repeated string operations = 2; // e.g. state changes
+  int32 timeout_blocks     = 3;   // on‐chain deadline in blocks
+  // dedicated on-chain fields:
+  string onchain_recipient = 4;  // the address to receive on commit
+  uint64 onchain_amount    = 5;  // amount in wei to lock
+}
+
+message PrepareResponse {
+  enum Status {
+    READY = 0;
+    ABORT = 1;
+  }
+  Status status   = 1;
+  string shard_id = 2;
+}
+
+message CommitRequest   { string transaction_id = 1; }
+message AbortRequest    { string transaction_id = 1; }
+message RollbackRequest { string transaction_id = 1; }
+
+// --- new on‐chain adapter messages ---
+
+// Instructs the shard to call lockFunds(txId, recipient, deadline) on its adapter
+message LockRequest {
+  string transaction_id = 1;
+  string recipient      = 2;  // hex‐encoded address, e.g. "0xAbc123..."
+  uint64 amount         = 3;  // wei to lock
+  uint64 deadline       = 4;  // block number after which reclaim is allowed
+}
+
+// Returns the tx hash of the on‐chain transaction
+message TxHash {
+  string hash = 1;           // hex‐encoded tx hash, e.g. "0x..."
+}
+
+// Used for both commitOnChain and reclaimOnChain calls
+message OnChainRequest {
+  string transaction_id = 1;
+}
+
+service Coordinator {
+  rpc Prepare(PrepareRequest)        returns (stream PrepareResponse);
+  rpc Commit(CommitRequest)          returns (Empty);
+  rpc Abort(AbortRequest)            returns (Empty);
+}
+
+service Shard {
+  // off‐chain 2PC RPCs
+  rpc Prepare(PrepareRequest)       returns (PrepareResponse);
+  rpc Commit(CommitRequest)         returns (Empty);
+  rpc Abort(AbortRequest)           returns (Empty);
+  rpc Rollback(RollbackRequest)     returns (Empty);
+
+  // on‐chain adapter RPCs
+  rpc LockOnChain(LockRequest)         returns (TxHash);
+  rpc CommitOnChain(OnChainRequest)    returns (TxHash);
+  rpc ReclaimOnChain(OnChainRequest)   returns (TxHash);
+}

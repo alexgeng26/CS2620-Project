@@ -1,0 +1,5 @@
+{
+    "shard1": "localhost:50061",
+    "shard2": "localhost:50062",
+    "shard3": "localhost:50063"
+  }
